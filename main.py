@@ -67,7 +67,7 @@ flags.DEFINE_float("th", 0.5, "Threshold [0.5]")
 
 
 # Training / test parameters
-flags.DEFINE_integer("batch_size", 300, "Batch size [500]")
+flags.DEFINE_integer("batch_size", 250, "Batch size [300]")
 flags.DEFINE_integer("val_num_batches", 0, "validation num batches [0]. "+ \
     "Use non-zero value to run evaluation on subset of the validation set.")
 flags.DEFINE_integer("test_num_batches", 0, "test num batches [0]")
@@ -78,7 +78,7 @@ flags.DEFINE_float("init_lr", 0.001, "Initial learning rate [0.001]")
 flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob for the dropout of LSTM weights [0.8]")
 flags.DEFINE_float("keep_prob", 0.8, "Keep prob for the dropout of Char-CNN weights [0.8]")
 flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
-flags.DEFINE_integer("hidden_size", 100, "Hidden size [150]")
+flags.DEFINE_integer("hidden_size", 150, "Hidden size [150]")
 flags.DEFINE_integer("char_out_size", 100, "char-level word embedding size [100]")
 flags.DEFINE_integer("char_emb_size", 8, "Char emb size [8]")
 flags.DEFINE_string("out_channel_dims", "100", "Out channel dims of Char-CNN, separated by commas [100]")
@@ -98,7 +98,7 @@ flags.DEFINE_bool("cpu_opt", False, "CPU optimization? GPU computation can be sl
 # Logging and saving options
 flags.DEFINE_boolean("progress", True, "Show progress? [True]")
 flags.DEFINE_integer("log_period", 100, "Log period [100]")
-flags.DEFINE_integer("eval_period", 100, "Eval period [1000]")
+flags.DEFINE_integer("eval_period", 200, "Eval period [1000]")
 flags.DEFINE_integer("save_period", 1000, "Save Period [1000]")
 flags.DEFINE_integer("max_to_keep", 20, "Max recent saves to keep [20]")
 flags.DEFINE_bool("dump_eval", True, "dump eval? [True]")
@@ -110,7 +110,7 @@ flags.DEFINE_float("decay", 0.9, "Exponential moving average decay for logging v
 # Thresholds for speed and less memory usage
 flags.DEFINE_integer("word_count_th", 100, "word count th [100]")
 flags.DEFINE_integer("char_count_th", 505, "char count th [500]")
-flags.DEFINE_integer("sent_size_th", 130, "sent size th [130]")
+flags.DEFINE_integer("sent_size_th", 120, "sent size th [130]")
 flags.DEFINE_integer("word_size_th", 16, "word size th [16]") # what's difference word count and word size?
 
 # Advanced training options
