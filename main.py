@@ -14,7 +14,7 @@ from trainer import MultiGPUTrainer
 
 from mytensorflow import get_num_params
 
-from read_data import read_data, update_config
+from read_data import read_data, update_config, get_data_filter
 
 import numpy as np
 from collections import Counter, defaultdict
@@ -38,8 +38,8 @@ flags = tf.app.flags
 
 # Names and directories
 
-# flags.DEFINE_string("data_dir", os.path.join("..", "data", "quora"), "Data dir [../data/quora]")
-flags.DEFINE_string("data_dir", os.path.join("tiny"), "Data dir [../data/quora]") # tiny sample dataset
+flags.DEFINE_string("data_dir", os.path.join("..", "data", "quora"), "Data dir [../data/quora]")
+# flags.DEFINE_string("data_dir", os.path.join("tiny"), "Data dir [../data/quora]") # tiny sample dataset
 
 flags.DEFINE_string("model_name", "basic", "Model name [basic]")
 flags.DEFINE_string("run_id", "0", "Run ID [0]")
@@ -67,7 +67,7 @@ flags.DEFINE_float("th", 0.5, "Threshold [0.5]")
 
 
 # Training / test parameters
-flags.DEFINE_integer("batch_size", 2, "Batch size [1000]")
+flags.DEFINE_integer("batch_size", 300, "Batch size [500]")
 flags.DEFINE_integer("val_num_batches", 0, "validation num batches [0]. "+ \
     "Use non-zero value to run evaluation on subset of the validation set.")
 flags.DEFINE_integer("test_num_batches", 0, "test num batches [0]")
@@ -78,7 +78,7 @@ flags.DEFINE_float("init_lr", 0.001, "Initial learning rate [0.001]")
 flags.DEFINE_float("input_keep_prob", 0.8, "Input keep prob for the dropout of LSTM weights [0.8]")
 flags.DEFINE_float("keep_prob", 0.8, "Keep prob for the dropout of Char-CNN weights [0.8]")
 flags.DEFINE_float("wd", 0.0, "L2 weight decay for regularization [0.0]")
-flags.DEFINE_integer("hidden_size", 150, "Hidden size [100]")
+flags.DEFINE_integer("hidden_size", 100, "Hidden size [150]")
 flags.DEFINE_integer("char_out_size", 100, "char-level word embedding size [100]")
 flags.DEFINE_integer("char_emb_size", 8, "Char emb size [8]")
 flags.DEFINE_string("out_channel_dims", "100", "Out channel dims of Char-CNN, separated by commas [100]")
@@ -110,7 +110,7 @@ flags.DEFINE_float("decay", 0.9, "Exponential moving average decay for logging v
 # Thresholds for speed and less memory usage
 flags.DEFINE_integer("word_count_th", 100, "word count th [100]")
 flags.DEFINE_integer("char_count_th", 505, "char count th [500]")
-flags.DEFINE_integer("sent_size_th", 400, "sent size th [64]")
+flags.DEFINE_integer("sent_size_th", 130, "sent size th [130]")
 flags.DEFINE_integer("word_size_th", 16, "word size th [16]") # what's difference word count and word size?
 
 # Advanced training options
@@ -180,8 +180,9 @@ def main(_):
 
 
 def _train(config):
-    train_data = read_data(config, 'train', config.load)
-    dev_data = read_data(config, 'dev', True)
+    data_filter = get_data_filter(config)
+    train_data = read_data(config, 'train', config.load, data_filter=data_filter)    
+    dev_data = read_data(config, 'dev', True, data_filter=data_filter)
     update_config(config, [train_data, dev_data])
 
     _config_debug(config)

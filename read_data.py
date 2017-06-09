@@ -257,16 +257,35 @@ def update_config(config, data_sets):
     for data_set in data_sets:
         data = data_set.data
         shared = data_set.shared
-        for idx in data_set.valid_idxs:
+        for idx in data_set.valid_idxs: # valid_idxs only contains data passed data_filter
             # Q. what is valid_idx?
             sent1 = data['x_list'][idx]
             sent2 = data['y_list'][idx]
             sents = [sent1, sent2]
-            config.max_sent_size = max(config.max_sent_size, max(map(len, sents))) +1 # +1 for additional token NULL at the end of sentence
+            config.max_sent_size = max(config.max_sent_size, max(map(len, sents)))
             config.max_word_size = max(config.max_word_size, max(len(word) for sent in sents for word in sent))
 
     config.max_word_size = min(config.max_word_size, config.word_size_th)
 
+    config.max_sent_size = config.max_sent_size +1 # +1 for additional token NULL at the end of sentence
+
     config.char_vocab_size = len(data_sets[0].shared['char2idx'])
     config.word_emb_size = len(next(iter(data_sets[0].shared['word2vec'].values())))
     config.word_vocab_size = len(data_sets[0].shared['word2idx'])
+
+
+def get_data_filter(config):
+    def data_filter(data_point, shared):
+        """
+        NOTE: To see the given data point use `print(xi, q, y)`.
+        """
+        assert shared is not None
+        sent1 = data_point['x_list']
+        sent2 = data_point['y_list']
+        if max(len(sent1), len(sent2)) > config.sent_size_th:
+            # print("exceeding sent size limit:", len(sent1), len(sent2))
+            # print('excluding long sentence:', sent1, sent2)
+            return False
+
+        return True
+    return data_filter

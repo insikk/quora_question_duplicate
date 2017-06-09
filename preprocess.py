@@ -108,9 +108,9 @@ def prepro_each(args, data_type, out_name="default"):
     if not args.split:
         sent_tokenize = lambda para: [para]
 
-    source_path = os.path.join(args.source_dir, "quora_{}.csv".format(data_type))
-    source_reader = csv.reader(open(source_path, 'r'))
-    next(source_reader, None)  # skip the headers
+    source_path = os.path.join(args.source_dir, "quora_wang_{}.tsv".format(data_type))
+    source_reader = csv.reader(open(source_path, 'r'), delimiter='\t')
+    # next(source_reader, None)  # skip the headers
     
     x_list, cx_list = [], []
     y_list, cy_list = [], []
@@ -121,12 +121,16 @@ def prepro_each(args, data_type, out_name="default"):
         if len(items) == 0: # skip blank lines between data point
             continue
 
-        entry_id = int(items[0])
-        qid1 = int(items[1])
-        qid2 = int(items[2])
-        sent1 = items[3]
-        sent2 = items[4]
-        label = int(items[5])
+        sent1 = items[1]
+        sent2 = items[2]
+        label = int(items[0])
+
+        # entry_id = int(items[0])
+        # qid1 = int(items[1])
+        # qid2 = int(items[2])
+        # sent1 = items[3]
+        # sent2 = items[4]
+        # label = int(items[5])
 
         def process_sentence(sent):
             """
