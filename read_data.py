@@ -287,5 +287,10 @@ def get_data_filter(config):
             # print('excluding long sentence:', sent1, sent2)
             return False
 
+        if min(len(sent1), len(sent2)) == 0:
+            print("zero length sentence exists", sent1, sent2)
+            return False
+        
+
         return True
     return data_filter
