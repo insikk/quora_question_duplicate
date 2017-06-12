@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from read_data import DataSet
-from tensorflow.contrib.rnn import BasicLSTMCell, LSTMStateTuple
+from tensorflow.contrib.rnn import BasicLSTMCell, LSTMStateTuple, GRUCell
 from tensorflow.python.ops.rnn import dynamic_rnn
 
 from mytensorflow import get_initializer
@@ -136,21 +136,25 @@ class Model(object):
         self.tensor_dict['xx'] = xx
         self.tensor_dict['yy'] = yy       
 
-        with tf.variable_scope('lstm_s_premise'):
-            lstm_s_premise_cell = BasicLSTMCell(self.h_dim, forget_bias=0.0)
-            h_s, _ = tf.nn.dynamic_rnn(lstm_s_premise_cell, xx, sequence_length=self.x_length,
-                                       dtype=tf.float32)            
+       
+        with tf.variable_scope('contextual_embedding_layer'): # representation sees left, right context of the words
+            cell_fw = GRUCell(self.h_dim)
+            cell_bw = GRUCell(self.h_dim)
+            d_cell_fw = SwitchableDropoutWrapper(cell_fw, self.is_train, input_keep_prob=config.input_keep_prob)
+            d_cell_bw = SwitchableDropoutWrapper(cell_bw, self.is_train, input_keep_prob=config.input_keep_prob)
 
-        with tf.variable_scope('lstm_t_hypothesis'):
-            lstm_t_hypothesis_cell = BasicLSTMCell(self.h_dim, forget_bias=0.0)
-            h_t, _ = tf.nn.dynamic_rnn(lstm_t_hypothesis_cell, yy, sequence_length=self.y_length,
-                                       dtype=tf.float32)
+            (fw_p, bw_p), _ = tf.nn.bidirectional_dynamic_rnn(d_cell_fw, d_cell_bw, xx, self.x_length, dtype='float', scope="contextual_birnn")  # [N, J, d], [N, d]
+            h_s = tf.concat(axis=2, values=[fw_p, bw_p])
+
+            tf.get_variable_scope().reuse_variables()
+            (fw_t, bw_t), _ = tf.nn.bidirectional_dynamic_rnn(d_cell_fw, d_cell_bw, yy, self.y_length, dtype='float', scope="contextual_birnn")  # [N, J, d], [N, d]
+            h_t = tf.concat(axis=2, values=[fw_t, bw_t])
 
 
-        mLSTM_cell = BasicLSTMCell(self.h_dim, forget_bias=0.0)        
+        mLSTM_cell = BasicLSTMCell(self.h_dim*2, forget_bias=0.0)        
 
         outputs = matchLSTM(
-            self.h_dim,
+            self.h_dim*2,
             N,
             mLSTM_cell,
             h_t,
@@ -164,7 +168,7 @@ class Model(object):
 
         with tf.variable_scope('fully_connect'):
             _initializer = tf.truncated_normal_initializer(stddev=0.1)
-            w_fc = tf.get_variable(shape=[self.h_dim, 2],
+            w_fc = tf.get_variable(shape=[self.h_dim*2, 2],
                                    initializer=_initializer, name='w_fc')
             b_fc = tf.get_variable(shape=[2],
                                    initializer=_initializer, name='b_fc')

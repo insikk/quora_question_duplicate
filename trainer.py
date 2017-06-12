@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from model_siameseLSTM import Model
+from model_mLSTM import Model
 
 
 def average_gradients(tower_grads):
