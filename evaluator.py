@@ -150,6 +150,13 @@ class AccuracyEvaluator(LabeledEvaluator):
         tensor_dict = dict(zip(self.tensor_dict.keys(), vals))
         e = AccuracyEvaluation(data_set.data_type, int(global_step), idxs, logits.tolist(), z, correct, float(loss), tensor_dict=tensor_dict)
         return e
+
+    def get_inference_output(self, sess, batch):
+        idxs, data_set = self._split_batch(batch)
+        assert isinstance(data_set, DataSet)
+        feed_dict = self.model.get_feed_dict(data_set, False)
+        global_step, logits, a_jk, vals = sess.run([self.global_step, self.logits, self.model.alignment_att, list(self.tensor_dict.values())], feed_dict=feed_dict)
+        return data_set, logits, a_jk
     
     def _split_batch(self, batch):
         return batch

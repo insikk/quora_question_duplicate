@@ -175,6 +175,8 @@ def main(_):
             _train(config)
         elif config.mode == 'test':
             _test(config)
+        elif config.mode == 'forward':
+            _forward(config)
         else:
             raise ValueError("invalid value for 'mode': {}".format(config.mode))
 
@@ -327,6 +329,54 @@ def _test(config):
         graph_handler.dump_eval(e)
         
 
+def _forward(config):
+    test_data = read_data(config, 'test', True) # TODO: change to load data from file named as forward. 
+    update_config(config, [test_data])
+
+    _config_debug(config)
+
+    if config.use_glove_for_unk:
+        word2vec_dict = test_data.shared['lower_word2vec'] if config.lower_word else test_data.shared['word2vec']
+        new_word2idx_dict = test_data.shared['new_word2idx']
+        idx2vec_dict = {idx: word2vec_dict[word] for word, idx in new_word2idx_dict.items()}
+        new_emb_mat = np.array([idx2vec_dict[idx] for idx in range(len(idx2vec_dict))], dtype='float32')
+        config.new_emb_mat = new_emb_mat
+
+    pprint(config.__flags, indent=2)
+    models = get_multi_gpu_models(config)
+    model = models[0]
+    evaluator = MultiGPUEvaluator(config, models, tensor_dict=models[0].tensor_dict if config.vis else None)
+    graph_handler = GraphHandler(config, model)
+
+    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+    graph_handler.initialize(sess)
+    num_steps = math.ceil(test_data.num_examples / (config.batch_size * config.num_gpus))
+    if 0 < config.test_num_batches < num_steps:
+        num_steps = config.test_num_batches
+
+    
+    
+    batch_data = {}
+    batch_data['x'] = []
+    batch_data['y'] = []
+    batch_data['z'] = []
+    batch_data['logits'] = []
+    batch_data['alignment_att'] = []
+    for multi_batch in tqdm(test_data.get_multi_batches(config.batch_size, config.num_gpus, num_steps=num_steps, cluster=config.cluster), total=num_steps):        
+        batch, logits, alignment_att = evaluator.get_inference_output(sess, multi_batch)
+        batch_data['x'].append(batch.data['x_list'])
+        batch_data['y'].append(batch.data['y_list'])
+        batch_data['z'].append(batch.data['z_list'])
+        batch_data['logits'].append(logits)
+        batch_data['alignment_att'].append(alignment_att)        
+        break # debug purpose
+
+    data_out_filename = "forward_data.pkl"
+    with open(data_out_filename, "wb") as f:
+        import pickle
+        pickle.dump(batch_data, f)
+
+    print("Forward is done. The result is saved in %s" % (data_out_filename))        
     
 if __name__ == "__main__":
     tf.app.run()
