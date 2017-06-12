@@ -368,8 +368,7 @@ def _forward(config):
         batch_data['y'].append(batch.data['y_list'])
         batch_data['z'].append(batch.data['z_list'])
         batch_data['logits'].append(logits)
-        batch_data['alignment_att'].append(alignment_att)        
-        break # debug purpose
+        batch_data['alignment_att'].append(alignment_att)
 
     data_out_filename = "forward_data.pkl"
     with open(data_out_filename, "wb") as f:
