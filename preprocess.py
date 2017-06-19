@@ -22,18 +22,18 @@ def main():
 def get_args():
     parser = argparse.ArgumentParser()
     home = os.path.expanduser("~")
-    # source_dir = os.path.join("..", "data", "quora")
-    # target_dir = os.path.join("..", "data", "quora")
-    source_dir = os.path.join("tiny")
-    target_dir = os.path.join("tiny")
+    source_dir = os.path.join("..", "data", "quora")
+    target_dir = os.path.join("..", "data", "quora")
+    # source_dir = os.path.join("tiny")
+    # target_dir = os.path.join("tiny")
     glove_dir = os.path.join(home, "data", "glove")
     parser.add_argument('-s', "--source_dir", default=source_dir)
     parser.add_argument('-t', "--target_dir", default=target_dir)
     parser.add_argument('-d', "--debug", action='store_true')
     
-    parser.add_argument("--glove_corpus", default="840B")
+    parser.add_argument("--glove_corpus", default="6B")
     parser.add_argument("--glove_dir", default=glove_dir)
-    parser.add_argument("--glove_vec_size", default=300, type=int)
+    parser.add_argument("--glove_vec_size", default=100, type=int)
     parser.add_argument("--tokenizer", default="PTB", type=str)
     
     parser.add_argument("--split", action='store_true') # SNLI is single sentence. we do not need split. 
@@ -172,8 +172,11 @@ def prepro_each(args, data_type, out_name="default"):
         
         if args.debug:
             break
-
+    
+    print("processing. upper/lower case words")
     word2vec_dict = get_word2vec(args, word_counter)
+    
+    print("processing. lower case transformed words")
     lower_word2vec_dict = get_word2vec(args, lower_word_counter)
 
     # add context here

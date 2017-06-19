@@ -137,42 +137,68 @@ class Model(object):
         self.tensor_dict['yy'] = yy       
 
        
-        with tf.variable_scope('contextual_embedding_layer'): # representation sees left, right context of the words
+        with tf.variable_scope('contextual_embedding_layer'): # representation contains left, right context of the words
             cell_fw = GRUCell(self.h_dim)
             cell_bw = GRUCell(self.h_dim)
             d_cell_fw = SwitchableDropoutWrapper(cell_fw, self.is_train, input_keep_prob=config.input_keep_prob)
             d_cell_bw = SwitchableDropoutWrapper(cell_bw, self.is_train, input_keep_prob=config.input_keep_prob)
 
             (fw_p, bw_p), _ = tf.nn.bidirectional_dynamic_rnn(d_cell_fw, d_cell_bw, xx, self.x_length, dtype='float', scope="contextual_birnn")  # [N, J, d], [N, d]
-            h_s = tf.concat(axis=2, values=[fw_p, bw_p])
+            h_premise = tf.concat(axis=2, values=[fw_p, bw_p])
 
             tf.get_variable_scope().reuse_variables()
             (fw_t, bw_t), _ = tf.nn.bidirectional_dynamic_rnn(d_cell_fw, d_cell_bw, yy, self.y_length, dtype='float', scope="contextual_birnn")  # [N, J, d], [N, d]
-            h_t = tf.concat(axis=2, values=[fw_t, bw_t])
+            h_hypothesis = tf.concat(axis=2, values=[fw_t, bw_t])
 
 
         mLSTM_cell = BasicLSTMCell(self.h_dim*2, forget_bias=0.0)        
 
-        outputs, self.alignment_att = matchLSTM(
-            self.h_dim*2,
-            N,
-            mLSTM_cell,
-            h_t,
-            h_s,
-            self.y_length,
-            self.x_length, 
-            JX, 
-            JX)        
-        
-        hidden_output_batch = get_last_relevant_rnn_output(outputs, self.y_length)        
+        with tf.variable_scope('matching_layer'):
+            # match whole premise on every word in hypothesis
+            outputs_ph, self.alignment_att_ph = matchLSTM(
+                self.h_dim*2,
+                N,
+                mLSTM_cell,
+                h_hypothesis,
+                h_premise,
+                self.y_length,
+                self.x_length, 
+                JX, 
+                JX)      
+            
+            match_result_p_on_h = get_last_relevant_rnn_output(outputs_ph, self.y_length) # [batch_size, h_dim*2]
+
+            tf.get_variable_scope().reuse_variables()
+            # match whole hypothesis on every word in premise
+            outputs_hp, self.alignment_att_hp = matchLSTM(
+                self.h_dim*2,
+                N,
+                mLSTM_cell,
+                h_premise,
+                h_hypothesis,
+                self.x_length,             
+                self.y_length,
+                JX, 
+                JX)
+            match_result_h_on_p = get_last_relevant_rnn_output(outputs_hp, self.x_length) # [batch_size, h_dim*2]
+
+            match_result = tf.concat([match_result_p_on_h, match_result_p_on_h], axis=1)
 
         with tf.variable_scope('fully_connect'):
             _initializer = tf.truncated_normal_initializer(stddev=0.1)
-            w_fc = tf.get_variable(shape=[self.h_dim*2, 2],
-                                   initializer=_initializer, name='w_fc')
+
+            W1 = tf.get_variable("W1", shape=[self.h_dim*4, 200], initializer=_initializer)
+            b1 = tf.get_variable("b1", shape=[200], initializer=_initializer)            
+            a1 = tf.nn.relu(tf.matmul(match_result, W1) + b1)
+            W2 = tf.get_variable("W2", shape=[200, 200], initializer=_initializer)
+            b2 = tf.get_variable("b2", shape=[200], initializer=_initializer)            
+            a2 = tf.nn.relu(tf.matmul(a1, W2) + b2)
+            
+            w_fc = tf.get_variable(shape=[200, 2],
+                                   initializer=_initializer, name='w_pred')
             b_fc = tf.get_variable(shape=[2],
-                                   initializer=_initializer, name='b_fc')
-            self.logits = tf.matmul(hidden_output_batch, w_fc) + b_fc
+                                   initializer=_initializer, name='b_pred')
+            self.logits = tf.matmul(a2, w_fc) + b_fc
 
         print("logits:", self.logits)
         
@@ -306,7 +332,10 @@ class Model(object):
                 assert isinstance(each, int), each
                 x[i, j] = each
                 x_mask[i, j] = True
-            x_length[i] = len(xi)
+            
+            x[i, len(xi)] = NULL
+            x_mask[i, len(xi)] = True
+            x_length[i] = len(xi)+1            
 
         for i, cxi in enumerate(CX):
             for j, cxij in enumerate(cxi):
