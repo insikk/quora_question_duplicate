@@ -67,7 +67,7 @@ flags.DEFINE_float("th", 0.5, "Threshold [0.5]")
 
 
 # Training / test parameters
-flags.DEFINE_integer("batch_size", 120, "Batch size [600]")
+flags.DEFINE_integer("batch_size", 120, "Batch size [120]")
 flags.DEFINE_integer("val_num_batches", 0, "validation num batches [0]. "+ \
     "Use non-zero value to run evaluation on subset of the validation set.")
 flags.DEFINE_integer("test_num_batches", 0, "test num batches [0]")
@@ -98,7 +98,7 @@ flags.DEFINE_bool("cpu_opt", False, "CPU optimization? GPU computation can be sl
 # Logging and saving options
 flags.DEFINE_boolean("progress", True, "Show progress? [True]")
 flags.DEFINE_integer("log_period", 200, "Log period [100]")
-flags.DEFINE_integer("eval_period", 200, "Eval period [1000]")
+flags.DEFINE_integer("eval_period", 500, "Eval period [1000]")
 flags.DEFINE_integer("save_period", 1000, "Save Period [1000]")
 flags.DEFINE_integer("max_to_keep", 20, "Max recent saves to keep [20]")
 flags.DEFINE_bool("dump_eval", True, "dump eval? [True]")
@@ -361,14 +361,32 @@ def _forward(config):
     batch_data['y'] = []
     batch_data['z'] = []
     batch_data['logits'] = []
-    batch_data['alignment_att'] = []
+    batch_data['alignment_att_ph'] = []    
+    batch_data['logits_per_h'] = []
+
     for multi_batch in tqdm(test_data.get_multi_batches(config.batch_size, config.num_gpus, num_steps=num_steps, cluster=config.cluster), total=num_steps):        
-        batch, logits, alignment_att = evaluator.get_inference_output(sess, multi_batch)
+        batch, logits, alignment_att_ph, outputs_ph = evaluator.get_inference_output(sess, multi_batch)
         batch_data['x'].append(batch.data['x_list'])
         batch_data['y'].append(batch.data['y_list'])
         batch_data['z'].append(batch.data['z_list'])
         batch_data['logits'].append(logits)
-        batch_data['alignment_att'].append(alignment_att)
+        batch_data['alignment_att_ph'].append(alignment_att_ph)
+
+        # print(outputs_ph.shape)
+        batch_size = outputs_ph.shape[0]
+        timestep = outputs_ph.shape[1]        
+
+        logits_per_h = np.zeros([batch_size, timestep, 2], dtype='float32')
+        for k in range(timestep):
+            pick = outputs_ph[:, k, :]
+            # print(pick.shape)            
+            result_to_logit_graph = sess.partial_run_setup(model.logits, model.match_result)
+            logits_per_timestep = sess.partial_run(result_to_logit_graph, model.logits, feed_dict={model.match_result: pick})
+            # print(logits_per_timestep)
+            logits_per_h[:, k, :] = logits_per_timestep
+
+        batch_data['logits_per_h'].append(logits_per_h)
+        
 
     data_out_filename = "forward_data.pkl"
     with open(data_out_filename, "wb") as f:
