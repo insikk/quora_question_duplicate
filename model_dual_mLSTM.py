@@ -155,7 +155,7 @@ class Model(object):
 
         with tf.variable_scope('matching_layer'):
             # match whole premise on every word in hypothesis
-            outputs_ph, self.alignment_att_ph = matchLSTM(
+            self.outputs_ph, self.alignment_att_ph = matchLSTM(
                 self.h_dim*2,
                 N,
                 mLSTM_cell,
@@ -165,12 +165,13 @@ class Model(object):
                 self.x_length, 
                 JX, 
                 JX)      
+            # self.outputs_ph has size of [batch_size, JX, h_dim*2]
             
-            match_result_p_on_h = get_last_relevant_rnn_output(outputs_ph, self.y_length) # [batch_size, h_dim*2]
+            self.match_result_p_on_h = get_last_relevant_rnn_output(self.outputs_ph, self.y_length) # [batch_size, h_dim*2]
 
             tf.get_variable_scope().reuse_variables()
             # match whole hypothesis on every word in premise
-            outputs_hp, self.alignment_att_hp = matchLSTM(
+            self.outputs_hp, self.alignment_att_hp = matchLSTM(
                 self.h_dim*2,
                 N,
                 mLSTM_cell,
@@ -180,16 +181,18 @@ class Model(object):
                 self.y_length,
                 JX, 
                 JX)
-            match_result_h_on_p = get_last_relevant_rnn_output(outputs_hp, self.x_length) # [batch_size, h_dim*2]
 
-            match_result = tf.concat([match_result_p_on_h, match_result_p_on_h], axis=1)
+            # self.outputs_hp has size of [batch_size, JX, h_dim*2]
+            self.match_result_h_on_p = get_last_relevant_rnn_output(self.outputs_hp, self.x_length) # [batch_size, h_dim*2]
+
+            self.match_result = tf.concat([self.match_result_p_on_h, self.match_result_p_on_h], axis=1)
 
         with tf.variable_scope('fully_connect'):
             _initializer = tf.truncated_normal_initializer(stddev=0.1)
 
             W1 = tf.get_variable("W1", shape=[self.h_dim*4, 200], initializer=_initializer)
             b1 = tf.get_variable("b1", shape=[200], initializer=_initializer)            
-            a1 = tf.nn.relu(tf.matmul(match_result, W1) + b1)
+            a1 = tf.nn.relu(tf.matmul(self.match_result, W1) + b1)
             W2 = tf.get_variable("W2", shape=[200, 200], initializer=_initializer)
             b2 = tf.get_variable("b2", shape=[200], initializer=_initializer)            
             a2 = tf.nn.relu(tf.matmul(a1, W2) + b2)

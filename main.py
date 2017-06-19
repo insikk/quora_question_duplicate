@@ -361,14 +361,45 @@ def _forward(config):
     batch_data['y'] = []
     batch_data['z'] = []
     batch_data['logits'] = []
-    batch_data['alignment_att'] = []
+    batch_data['alignment_att_ph'] = []
+    batch_data['alignment_att_hp'] = []
+    batch_data['logits_per_h'] = []
+    batch_data['logits_per_p'] = []
     for multi_batch in tqdm(test_data.get_multi_batches(config.batch_size, config.num_gpus, num_steps=num_steps, cluster=config.cluster), total=num_steps):        
-        batch, logits, alignment_att = evaluator.get_inference_output(sess, multi_batch)
+        batch, feed, logits, alignment_att_ph, alignment_att_hp, outputs_ph, outputs_hp = evaluator.get_inference_output(sess, multi_batch)
         batch_data['x'].append(batch.data['x_list'])
         batch_data['y'].append(batch.data['y_list'])
         batch_data['z'].append(batch.data['z_list'])
         batch_data['logits'].append(logits)
-        batch_data['alignment_att'].append(alignment_att)
+        batch_data['alignment_att_ph'].append(alignment_att_ph)
+        batch_data['alignment_att_hp'].append(alignment_att_hp)
+
+        print(outputs_hp.shape)
+        batch_size = outputs_hp.shape[0]
+        timestep = outputs_hp.shape[1]        
+
+        logits_per_h = np.zeros([batch_size, timestep, 2], dtype='float32')
+        for k in range(outputs_hp.shape[1]):
+            pick = np.tile(outputs_hp[:, k, :], (1, 2))
+            # print(pick.shape)            
+            result_to_logit_graph = sess.partial_run_setup(model.logits, model.match_result)
+            logits_per_timestep = sess.partial_run(result_to_logit_graph, model.logits, feed_dict={model.match_result: pick})
+            # print(logits_per_timestep)
+            logits_per_h[:, k, :] = logits_per_timestep
+
+        logits_per_p = np.zeros([batch_size, timestep, 2], dtype='float32')
+        for k in range(outputs_ph.shape[1]):
+            pick = np.tile(outputs_ph[:, k, :], (1, 2))
+            # print(pick.shape)            
+            result_to_logit_graph = sess.partial_run_setup(model.logits, model.match_result)
+            logits_per_timestep = sess.partial_run(result_to_logit_graph, model.logits, feed_dict={model.match_result: pick})
+            # print(logits_per_timestep)
+            logits_per_p[:, k, :] = logits_per_timestep
+
+        batch_data['logits_per_h'].append(logits_per_h)
+        batch_data['logits_per_p'].append(logits_per_p)        
+        break
+
 
     data_out_filename = "forward_data.pkl"
     with open(data_out_filename, "wb") as f:

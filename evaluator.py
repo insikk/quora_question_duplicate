@@ -155,8 +155,10 @@ class AccuracyEvaluator(LabeledEvaluator):
         idxs, data_set = self._split_batch(batch)
         assert isinstance(data_set, DataSet)
         feed_dict = self.model.get_feed_dict(data_set, False)
-        global_step, logits, a_jk, vals = sess.run([self.global_step, self.logits, self.model.alignment_att, list(self.tensor_dict.values())], feed_dict=feed_dict)
-        return data_set, logits, a_jk
+        global_step, logits, alignment_att_ph, alignment_att_hp, outputs_ph, outputs_hp, vals = sess.run([
+            self.global_step, self.logits, self.model.alignment_att_ph, self.model.alignment_att_hp, self.model.outputs_ph, self.model.outputs_hp, list(self.tensor_dict.values())
+            ], feed_dict=feed_dict)
+        return data_set, feed_dict, logits, alignment_att_ph, alignment_att_hp, outputs_ph, outputs_hp
     
     def _split_batch(self, batch):
         return batch
