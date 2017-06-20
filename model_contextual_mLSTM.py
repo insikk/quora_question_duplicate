@@ -145,65 +145,37 @@ class Model(object):
             d_cell_bw = SwitchableDropoutWrapper(cell_bw, self.is_train, input_keep_prob=config.input_keep_prob)
 
             (fw_p, bw_p), _ = tf.nn.bidirectional_dynamic_rnn(d_cell_fw, d_cell_bw, xx, self.x_length, dtype='float', scope="contextual_birnn")  # [N, J, d], [N, d]
-            h_premise = tf.concat(axis=2, values=[fw_p, bw_p])
+            h_s = tf.concat(axis=2, values=[fw_p, bw_p])
 
             tf.get_variable_scope().reuse_variables()
             (fw_t, bw_t), _ = tf.nn.bidirectional_dynamic_rnn(d_cell_fw, d_cell_bw, yy, self.y_length, dtype='float', scope="contextual_birnn")  # [N, J, d], [N, d]
-            h_hypothesis = tf.concat(axis=2, values=[fw_t, bw_t])
+            h_t = tf.concat(axis=2, values=[fw_t, bw_t])
 
 
         mLSTM_cell = BasicLSTMCell(self.h_dim*2, forget_bias=0.0)        
 
-        with tf.variable_scope('matching_layer'):
-            # match whole premise on every word in hypothesis
-            self.outputs_ph, self.alignment_att_ph = matchLSTM(
-                self.h_dim*2,
-                N,
-                mLSTM_cell,
-                h_hypothesis,
-                h_premise,
-                self.y_length,
-                self.x_length, 
-                JX, 
-                JX)      
-            # self.outputs_ph has size of [batch_size, JX, h_dim*2]
-            # Because hypothesis also contains null, we want to get the timestep before the null as the match_result
-            self.match_result_p_on_h = get_last_relevant_rnn_output(self.outputs_ph, self.y_length-1) # [batch_size, h_dim*2]
-
-            tf.get_variable_scope().reuse_variables()
-            # match whole hypothesis on every word in premise
-            self.outputs_hp, self.alignment_att_hp = matchLSTM(
-                self.h_dim*2,
-                N,
-                mLSTM_cell,
-                h_premise,
-                h_hypothesis,
-                self.x_length,             
-                self.y_length,
-                JX, 
-                JX)
-
-            # self.outputs_hp has size of [batch_size, JX, h_dim*2]
-            # Because hypothesis also contains null, we want to get the timestep before the null as the match_result
-            self.match_result_h_on_p = get_last_relevant_rnn_output(self.outputs_hp, self.x_length-1) # [batch_size, h_dim*2]
-
-            self.match_result = tf.concat([self.match_result_p_on_h, self.match_result_p_on_h], axis=1)
+        self.outputs_ph, self.alignment_att_ph = matchLSTM(
+            self.h_dim*2,
+            N,
+            mLSTM_cell,
+            h_t,
+            h_s,
+            self.y_length,
+            self.x_length, 
+            JX, 
+            JX)      
+        
+        self.match_result = get_last_relevant_rnn_output(self.outputs_ph, self.y_length)        
 
         with tf.variable_scope('fully_connect'):
             _initializer = tf.truncated_normal_initializer(stddev=0.1)
-
-            W1 = tf.get_variable("W1", shape=[self.h_dim*4, 200], initializer=_initializer)
-            b1 = tf.get_variable("b1", shape=[200], initializer=_initializer)            
-            a1 = tf.nn.relu(tf.matmul(self.match_result, W1) + b1)
-            W2 = tf.get_variable("W2", shape=[200, 200], initializer=_initializer)
-            b2 = tf.get_variable("b2", shape=[200], initializer=_initializer)            
-            a2 = tf.nn.relu(tf.matmul(a1, W2) + b2)
-            
-            w_fc = tf.get_variable(shape=[200, 2],
-                                   initializer=_initializer, name='w_pred')
+            w_fc = tf.get_variable(shape=[self.h_dim*2, 2],
+                                   initializer=_initializer, name='w_fc')
             b_fc = tf.get_variable(shape=[2],
-                                   initializer=_initializer, name='b_pred')
-            self.logits = tf.matmul(a2, w_fc) + b_fc
+                                   initializer=_initializer, name='b_fc')
+            self.logits = tf.matmul(self.match_result, w_fc) + b_fc
+
+        print("logits:", self.logits)
         
         
     def _build_loss(self):
@@ -354,10 +326,8 @@ class Model(object):
                 if j == config.max_sent_size:
                     break
                 y[i, j] = _get_word(qij)
-                y_mask[i, j] = True            
-            y[i, len(qi)] = NULL
-            y_mask[i, len(qi)] = True
-            y_length[i] = len(qi)+1        
+                y_mask[i, j] = True
+            y_length[i] = len(qi)            
 
         for i, cqi in enumerate(batch.data['cy_list']):
             for j, cqij in enumerate(cqi):
