@@ -7,7 +7,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from evaluator import MultiGPUEvaluator
-from model_mLSTM import get_multi_gpu_models
+from model_contextual_mLSTM import get_multi_gpu_models
 from graph_handler import GraphHandler
 from trainer import MultiGPUTrainer
 
@@ -29,7 +29,7 @@ try:
     slack = slackweb.Slack(url=os.environ['TRAINING_SLACK_NOTI_URL'])
 except KeyError:
     slack = None
-header= "quora" # description for this training. 
+header= "quora_contextual_mLSTM" # description for this training. 
  
 
 
